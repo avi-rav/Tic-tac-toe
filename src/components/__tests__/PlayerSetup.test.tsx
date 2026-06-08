@@ -40,11 +40,37 @@ describe('PlayerSetup', () => {
     ).toBeInTheDocument();
   });
 
-  it('calls onStart with trimmed names on valid submit', async () => {
+  it('calls onStart with trimmed names and a human opponent on valid submit', async () => {
     const { user, inputX, inputO, submit, onStart } = setup();
     await user.type(inputX, '  Alice  ');
     await user.type(inputO, 'Bob');
     await user.click(submit);
-    expect(onStart).toHaveBeenCalledWith({ X: 'Alice', O: 'Bob' });
+    expect(onStart).toHaveBeenCalledWith(
+      { X: 'Alice', O: 'Bob' },
+      { kind: 'human' },
+    );
+  });
+
+  describe('vs Computer mode', () => {
+    it('hides the Player O input and shows a difficulty selector', async () => {
+      const { user } = setup();
+      await user.click(screen.getByLabelText(/vs computer/i));
+      expect(screen.queryByLabelText(/player o/i)).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/difficulty/i)).toBeInTheDocument();
+      // Only the human name is required now.
+      expect(screen.getByLabelText(/your name/i)).toBeInTheDocument();
+    });
+
+    it('starts a game with an AI opponent at the chosen difficulty', async () => {
+      const { user, onStart } = setup();
+      await user.click(screen.getByLabelText(/vs computer/i));
+      await user.type(screen.getByLabelText(/your name/i), 'Alice');
+      await user.selectOptions(screen.getByLabelText(/difficulty/i), 'hard');
+      await user.click(screen.getByRole('button', { name: /start game/i }));
+      expect(onStart).toHaveBeenCalledWith(
+        { X: 'Alice', O: 'Computer' },
+        { kind: 'ai', difficulty: 'hard' },
+      );
+    });
   });
 });

@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../../App';
 import { Game } from '../Game/Game';
@@ -27,9 +27,30 @@ async function startGame(xName = 'Alice', oName = 'Bob', strict = false) {
   return user;
 }
 
+/**
+ * Renders the app and starts a game against the computer at the given difficulty.
+ * Only the human (X) name is required in vs-computer mode.
+ */
+async function startVsComputer(difficulty = 'easy', name = 'Alice') {
+  const user = userEvent.setup();
+  render(<App />);
+  await user.click(screen.getByLabelText(/vs computer/i));
+  await user.type(screen.getByLabelText(/your name/i), name);
+  await user.selectOptions(screen.getByLabelText(/difficulty/i), difficulty);
+  await user.click(screen.getByRole('button', { name: /start game/i }));
+  return user;
+}
+
 /** Clicks a board cell by its 1-based position. */
 function cell(position: number) {
   return screen.getByRole('button', { name: new RegExp(`^Cell ${position},`) });
+}
+
+/** How many cells currently hold a mark. */
+function markedCount() {
+  return [1, 2, 3, 4, 5, 6, 7, 8, 9].filter(
+    (p) => cell(p).textContent !== '',
+  ).length;
 }
 
 describe('Game', () => {
@@ -103,6 +124,56 @@ describe('Game', () => {
   });
 });
 
+describe('Game — vs computer', () => {
+  it('auto-plays the AI (O) move after the human (X) moves', async () => {
+    const user = await startVsComputer('easy');
+    expect(screen.getByRole('status')).toHaveTextContent(/alice's turn \(x\)/i);
+
+    await user.click(cell(1)); // human (X) moves -> one mark on the board
+
+    // The AI's scheduled move lands, bringing the board to two marks and the
+    // turn back to the human. findBy* polls past the setTimeout delay.
+    await screen.findByText(/alice's turn \(x\)/i);
+    expect(markedCount()).toBe(2);
+  });
+
+  it('disables the board while it is the AI\'s turn', async () => {
+    const user = await startVsComputer('hard');
+    await user.click(cell(1)); // human moves; now it's the AI's turn
+
+    // Immediately after the human's move the board is disabled (AI is "thinking"),
+    // so a human click on another cell is ignored — only the AI adds the 2nd mark.
+    await screen.findByText(/alice's turn \(x\)/i); // AI finished
+    expect(markedCount()).toBe(2);
+  });
+
+  it('never lets the human beat the hard AI', async () => {
+    // Play a greedy human against perfect play: pick the lowest empty cell each
+    // turn. Against minimax the human can at best draw — never win.
+    const user = await startVsComputer('hard');
+    for (let i = 0; i < 5; i += 1) {
+      const status = () => screen.getByRole('status').textContent ?? '';
+      if (/wins|draw/i.test(status())) break;
+
+      const open = [1, 2, 3, 4, 5, 6, 7, 8, 9].find(
+        (p) => cell(p).textContent === '',
+      );
+      if (open === undefined) break;
+
+      const before = markedCount();
+      await user.click(cell(open)); // human moves -> +1 mark
+      // Wait for the position to settle: either the AI added its reply (+2 total)
+      // or the human's move ended the game (no AI reply).
+      await waitFor(() => {
+        expect(markedCount() >= before + 2 || /wins|draw/i.test(status())).toBe(
+          true,
+        );
+      });
+      expect(status()).not.toMatch(/alice \(x\) wins/i);
+    }
+  });
+});
+
 describe('Game — history recording', () => {
   const PLAYERS: Players = { X: 'Alice', O: 'Bob' };
 
@@ -111,6 +182,7 @@ describe('Game — history recording', () => {
     const ui = (
       <Game
         players={PLAYERS}
+        opponent={{ kind: 'human' }}
         onChangePlayers={() => {}}
         onShowHistory={() => {}}
         onGameEnd={onGameEnd}

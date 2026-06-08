@@ -1,7 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { useGame } from '../../hooks/useGame';
-import type { Players } from '../../game/types';
+import { chooseMove } from '../../game/aiStrategy';
+import { PLAYERS } from '../../game/constants';
+import type { Opponent, Players } from '../../game/types';
 import { createRecordId, type GameRecord } from '../../history/types';
+
+/** The AI controls the O side; X is always the human who set up the game. */
+const AI_PLAYER = PLAYERS[1];
+
+/** Delay before the AI plays, so its move feels deliberate rather than instant. */
+const AI_MOVE_DELAY_MS = 400;
 import { Board } from '../Board/Board';
 import { StatusBar } from '../StatusBar/StatusBar';
 import { ScoreBoard } from '../ScoreBoard/ScoreBoard';
@@ -10,6 +18,8 @@ import styles from './Game.module.css';
 
 interface GameProps {
   players: Players;
+  /** Who controls O — a second human or the computer at a difficulty. */
+  opponent: Opponent;
   /** Returns to the player-setup form. */
   onChangePlayers: () => void;
   /** Opens the history view. */
@@ -25,6 +35,7 @@ interface GameProps {
  */
 export function Game({
   players,
+  opponent,
   onChangePlayers,
   onShowHistory,
   onGameEnd,
@@ -42,6 +53,24 @@ export function Game({
   } = useGame();
 
   const isOver = status !== 'playing';
+
+  // It's the computer's turn when an AI opponent is set, the game is live, and the
+  // current side is the AI's. The board is disabled then so the human can't move for O.
+  const isAiTurn =
+    opponent.kind === 'ai' && !isOver && currentPlayer === AI_PLAYER;
+
+  // Drive the AI's move. A short timeout makes the move feel deliberate; the cleanup
+  // cancels it on unmount or before re-running — which also neutralises StrictMode's
+  // double-invoked effect (the first timer is cleared before it can fire, so the AI
+  // never moves twice). `makeMove` already ignores illegal indices, so a stale call
+  // after the board changes is harmless.
+  useEffect(() => {
+    if (!isAiTurn || opponent.kind !== 'ai') return;
+    const index = chooseMove(board, AI_PLAYER, opponent.difficulty);
+    if (index === null) return;
+    const timer = setTimeout(() => makeMove(index), AI_MOVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [isAiTurn, opponent, board, makeMove]);
 
   // Record each finished game exactly once. The ref guards against StrictMode's
   // double-invoked effects and any re-render while the game stays in a terminal
@@ -79,7 +108,7 @@ export function Game({
       <Board
         board={board}
         winningLine={winningLine}
-        disabled={isOver}
+        disabled={isOver || isAiTurn}
         onCellClick={makeMove}
       />
       <GameControls

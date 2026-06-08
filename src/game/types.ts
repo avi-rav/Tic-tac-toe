@@ -1,7 +1,16 @@
 import { PLAYERS } from './constants';
+import type { Difficulty } from './aiStrategy';
 
 /** A player marker. Derived from PLAYERS so adding markers never requires editing this type. */
 export type Player = (typeof PLAYERS)[number];
+
+/**
+ * Who controls the O side. X is always the human who set up the game; this describes
+ * the opponent — either a second human (hot-seat) or the computer at a difficulty.
+ */
+export type Opponent =
+  | { kind: 'human' }
+  | { kind: 'ai'; difficulty: Difficulty };
 
 /** A single cell: either a player's marker or empty. */
 export type CellValue = Player | null;

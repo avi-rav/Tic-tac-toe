@@ -27,6 +27,22 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.modeOptions {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.radio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--text);
+  cursor: pointer;
 }
 
 .label {

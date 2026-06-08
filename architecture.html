@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tic-Tac-Toe — Architecture</title>
+    <style>
+      :root {
+        --bg: #0f1117;
+        --panel: #181b24;
+        --panel-2: #1f2330;
+        --border: #2a2f3d;
+        --text: #e6e8ee;
+        --muted: #9aa3b2;
+        --accent: #5b9dff;
+        --accent-2: #9d7bff;
+        --green: #43c59e;
+        --amber: #e8b84b;
+        --pink: #ef6f8c;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: radial-gradient(1200px 600px at 70% -10%, #1a2030 0%, var(--bg) 60%);
+        color: var(--text);
+        line-height: 1.55;
+      }
+      .wrap { max-width: 1080px; margin: 0 auto; padding: 48px 24px 96px; }
+      header.hero { margin-bottom: 40px; }
+      .eyebrow {
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin: 0 0 8px;
+      }
+      h1 { font-size: 38px; margin: 0 0 10px; letter-spacing: -0.02em; }
+      .lede { color: var(--muted); font-size: 17px; max-width: 70ch; margin: 0; }
+      .meta-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+      .pill {
+        font-family: var(--mono);
+        font-size: 12px;
+        padding: 5px 11px;
+        border-radius: 999px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        color: var(--muted);
+      }
+      .pill b { color: var(--text); font-weight: 600; }
+
+      h2 {
+        font-size: 22px;
+        margin: 48px 0 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      h2 .num {
+        font-family: var(--mono);
+        font-size: 13px;
+        color: var(--accent);
+        background: rgba(91,157,255,0.12);
+        border: 1px solid rgba(91,157,255,0.3);
+        border-radius: 6px;
+        padding: 2px 8px;
+      }
+      p.section-intro { color: var(--muted); margin-top: -4px; }
+
+      /* layered diagram */
+      .layers { display: grid; gap: 14px; }
+      .layer {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px 18px;
+      }
+      .layer > .layer-head {
+        display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px;
+      }
+      .layer > .layer-head h3 { margin: 0; font-size: 15px; }
+      .layer > .layer-head .tag {
+        font-family: var(--mono); font-size: 11px; color: var(--muted);
+      }
+      .nodes { display: flex; flex-wrap: wrap; gap: 10px; }
+      .node {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 13px;
+        min-width: 140px;
+        flex: 1 1 160px;
+      }
+      .node .n-name { font-family: var(--mono); font-size: 13px; font-weight: 600; }
+      .node .n-desc { font-size: 12px; color: var(--muted); margin-top: 3px; }
+      .node.accent { border-color: rgba(91,157,255,0.45); }
+      .node.green { border-color: rgba(67,197,158,0.45); }
+      .node.purple { border-color: rgba(157,123,255,0.45); }
+      .flow-arrow { text-align: center; color: var(--muted); font-size: 18px; line-height: 1; }
+
+      /* cards grid */
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 14px;
+      }
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px 18px;
+        display: flex;
+        flex-direction: column;
+      }
+      .card h3 {
+        margin: 0 0 4px;
+        font-family: var(--mono);
+        font-size: 15px;
+        display: flex; align-items: center; gap: 8px;
+      }
+      .badge {
+        font-family: var(--mono);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 2px 7px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        color: var(--muted);
+      }
+      .badge.ui { color: var(--accent); border-color: rgba(91,157,255,0.4); background: rgba(91,157,255,0.08); }
+      .badge.hook { color: var(--accent-2); border-color: rgba(157,123,255,0.4); background: rgba(157,123,255,0.08); }
+      .badge.core { color: var(--green); border-color: rgba(67,197,158,0.4); background: rgba(67,197,158,0.08); }
+      .badge.data { color: var(--amber); border-color: rgba(232,184,75,0.4); background: rgba(232,184,75,0.08); }
+      .card .path { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 8px; word-break: break-all; }
+      .card .role { font-size: 13.5px; color: var(--text); margin: 0 0 10px; }
+      .card .api { margin-top: auto; }
+      .api-label {
+        font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+        color: var(--muted); margin-bottom: 5px;
+      }
+      .sig { font-family: var(--mono); font-size: 12px; color: #cdd4e0; }
+      .sig .k { color: var(--accent); }
+      .sig .t { color: var(--green); }
+      .sig li { margin: 3px 0; list-style: none; }
+      ul.sig { padding: 0; margin: 0; }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+      th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); background: var(--panel-2); }
+      tr:last-child td { border-bottom: none; }
+      td code, .inline { font-family: var(--mono); font-size: 12px; color: #cdd4e0; background: var(--panel-2); padding: 1px 6px; border-radius: 5px; }
+
+      .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      @media (max-width: 720px) { .two-col { grid-template-columns: 1fr; } }
+
+      footer {
+        margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--border);
+        color: var(--muted); font-size: 13px;
+      }
+      a { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="hero">
+        <p class="eyebrow">Architecture Reference</p>
+        <h1>Tic-Tac-Toe</h1>
+        <p class="lede">
+          A React + TypeScript game built around a strict separation
+          between <b>pure rules</b>, <b>state ownership</b>, and <b>presentation</b>.
+          Play <b>two-player hot-seat</b> or <b>vs. an AI opponent</b> at three
+          difficulties. Win detection, turn order, and move selection are all
+          data-driven; persistence and validation each live behind a single seam.
+          This page maps every component, hook, and module in the codebase.
+        </p>
+        <div class="meta-pills">
+          <span class="pill"><b>React</b> 19</span>
+          <span class="pill"><b>TypeScript</b> 6</span>
+          <span class="pill"><b>Vite</b> 8</span>
+          <span class="pill"><b>Vitest</b> + Testing Library</span>
+          <span class="pill"><b>Playwright</b> e2e</span>
+          <span class="pill"><b>react-hook-form</b> + <b>zod</b></span>
+          <span class="pill">CSS Modules</span>
+        </div>
+      </header>
+
+      <!-- ============ LAYERED OVERVIEW ============ -->
+      <section>
+        <h2><span class="num">01</span> Layered overview</h2>
+        <p class="section-intro">
+          Dependencies point downward only. Presentation depends on the hooks'
+          interfaces; hooks depend on the pure core and the storage seam — never
+          the reverse.
+        </p>
+
+        <div class="layers">
+          <div class="layer">
+            <div class="layer-head"><h3>Entry</h3><span class="tag">bootstraps React</span></div>
+            <div class="nodes">
+              <div class="node"><div class="n-name">main.tsx</div><div class="n-desc">Mounts &lt;App/&gt; into #root under StrictMode</div></div>
+              <div class="node accent"><div class="n-name">App.tsx</div><div class="n-desc">Top-level seam: owns players + opponent + history, swaps Setup / Game / History views</div></div>
+            </div>
+          </div>
+
+          <div class="flow-arrow">↓</div>
+
+          <div class="layer">
+            <div class="layer-head"><h3>Presentation</h3><span class="tag">components/ — stateless, prop-driven</span></div>
+            <div class="nodes">
+              <div class="node accent"><div class="n-name">PlayerSetup</div><div class="n-desc">Schema-validated mode + name + difficulty form</div></div>
+              <div class="node accent"><div class="n-name">Game</div><div class="n-desc">Composition root; drives the AI's turn through makeMove</div></div>
+              <div class="node accent"><div class="n-name">Board → Square</div><div class="n-desc">Grid of interchangeable cells</div></div>
+              <div class="node accent"><div class="n-name">StatusBar / ScoreBoard</div><div class="n-desc">Derived read-outs</div></div>
+              <div class="node accent"><div class="n-name">GameControls</div><div class="n-desc">Emits intents</div></div>
+              <div class="node accent"><div class="n-name">HistoryPage → HistoryEntry</div><div class="n-desc">Reconstructed mini-boards</div></div>
+            </div>
+          </div>
+
+          <div class="flow-arrow">↓</div>
+
+          <div class="layer">
+            <div class="layer-head"><h3>State ownership</h3><span class="tag">hooks/ — the only mutable state</span></div>
+            <div class="nodes">
+              <div class="node purple"><div class="n-name">useGame()</div><div class="n-desc">Owns board, current player, scores; exposes actions. Derives status/winner.</div></div>
+              <div class="node purple"><div class="n-name">useHistory()</div><div class="n-desc">In-memory history list, seeded from + delegated to storage</div></div>
+            </div>
+          </div>
+
+          <div class="flow-arrow">↓</div>
+
+          <div class="layer">
+            <div class="layer-head"><h3>Domain core &amp; data seams</h3><span class="tag">game/ + history/ — pure logic, no React</span></div>
+            <div class="nodes">
+              <div class="node green"><div class="n-name">gameLogic.ts</div><div class="n-desc">Pure rules: winner, draw, next player</div></div>
+              <div class="node green"><div class="n-name">aiStrategy.ts</div><div class="n-desc">Pure move selection: easy / medium / hard (minimax)</div></div>
+              <div class="node green"><div class="n-name">constants.ts</div><div class="n-desc">PLAYERS, WINNING_LINES, BOARD_SIZE</div></div>
+              <div class="node green"><div class="n-name">playerSchema.ts</div><div class="n-desc">zod validation truth</div></div>
+              <div class="node"><div class="n-name">types.ts (game + history)</div><div class="n-desc">Shared domain types</div></div>
+              <div class="node green"><div class="n-name">historyStorage.ts</div><div class="n-desc">Sole localStorage boundary</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ COMPONENTS ============ -->
+      <section>
+        <h2><span class="num">02</span> Components</h2>
+        <p class="section-intro">
+          All under <span class="inline">src/components/</span>. Each is presentational —
+          it receives data and emits intents through callbacks, owning no rule logic.
+          Every component ships a matching <span class="inline">*.module.css</span>.
+        </p>
+
+        <div class="grid">
+          <div class="card">
+            <h3>App <span class="badge ui">root</span></h3>
+            <div class="path">src/App.tsx</div>
+            <p class="role">Holds the session's players and the saved-game history; switches between the setup form, the live game, and the history view.</p>
+            <div class="api">
+              <div class="api-label">Props</div>
+              <ul class="sig"><li>— (top-level, none)</li></ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>PlayerSetup <span class="badge ui">view</span></h3>
+            <div class="path">components/PlayerSetup/</div>
+            <p class="role">react-hook-form + zodResolver. Picks a mode (Two Players / vs Computer); collects names, or the human's name + a difficulty. Validates against <span class="inline">playerSchema</span>, hands the players and chosen opponent off on submit.</p>
+            <div class="api">
+              <div class="api-label">Props</div>
+              <ul class="sig">
+                <li><span class="k">onStart</span>(players: <span class="t">Players</span>, opponent: <span class="t">Opponent</span>): void</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Game <span class="badge ui">view</span></h3>
+            <div class="path">components/Game/</div>
+            <p class="role">Composition root for a session. Pulls state from <span class="inline">useGame()</span> and wires it to children. When the opponent is an AI, a cleanup-guarded <span class="inline">setTimeout</span> effect feeds <span class="inline">aiStrategy.chooseMove</span> into the same <span class="inline">makeMove</span> seam (board disabled meanwhile). Records each finished game exactly once (StrictMode-safe via a ref).</p>
+            <div class="api">
+              <div class="api-label">Props</div>
+              <ul class="sig">
+                <li><span class="k">players</span>: <span class="t">Players</span></li>
+                <li><span class="k">opponent</span>: <span class="t">Opponent</span></li>
+                <li><span class="k">onChangePlayers</span>(): void</li>
+                <li><span class="k">onShowHistory</span>(): void</li>
+                <li><span class="k">onGameEnd</span>(record: <span class="t">GameRecord</span>): void</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Board <span class="badge ui">presentational</span></h3>
+            <div class="path">components/Board/</div>
+            <p class="role">Maps the board array onto Squares and flags the winning cells. Re-skinnable via <span class="inline">className</span> (reused for the history mini-board).</p>
+            <div class="api">
+              <div class="api-label">Props</div>
+              <ul class="sig">
+                <li><span class="k">board</span>: <span class="t">BoardState</span></li>
+                <li><span class="k">winningLine</span>: <span class="t">number[] | null</span></li>
+                <li><span class="k">disabled</span>: <span class="t">boolean</span></li>
+                <li><span class="k">onCellClick</span>(i: <span class="t">number</span>): void</li>
+                <li><span class="k">className?</span> / <span class="k">label?</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Square <span class="badge ui">presentational</span></h3>
+            <div class="path">components/Square/</div>
+            <p class="role">A single interchangeable cell. Holds no game knowledge; memoized since most cells don't change between renders.</p>
+            <div class="api">
+              <div class="api-label">Props</div>
+              <ul class="sig">
+                <li><span class="k">value</span>: <span class="t">CellValue</span></li>
+                <li><span class="k">position</span>: <span class="t">number</span></li>
+                <li><span class="k">isWinning</span>: <span class="t">boolean</span></li>
+                <li><span class="k">disabled</span>: <span class="t">boolean</span></li>
+                <li><span class="k">onClick</span>(): void</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>StatusBar <span class="badge ui">presentational</span></h3>
+            <div class="path">components/StatusBar/</div>
+            <p class="role">Announces game state via an <span class="inline">aria-live</span> region — turn, win, or draw message derived from props.</p>
+            <div class="api">
+              <div class="api-label">Props</div>
+              <ul class="sig">
+                <li><span class="k">status</span>: <span class="t">GameStatus</span></li>
+                <li><span class="k">currentPlayer</span>: <span class="t">Player</span></li>
+                <li><span class="k">winner</span>: <span class="t">Player | null</span></li>
+                <li><span class="k">players</span>: <span class="t">Players</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>ScoreBoard <span class="badge ui">presentational</span></h3>
+            <div class="path">components/ScoreBoard/</div>
+            <p class="role">Session tally: each player's wins by name plus draws. Highlights the active player while playing.</p>
+            <div class="api">
+              <div class="api-label">Props</div>
+              <ul class="sig">
+                <li><span class="k">players</span>: <span class="t">Players</span></li>
+                <li><span class="k">scores</span>: <span class="t">Scores</span></li>
+                <li><span class="k">activePlayer</span>: <span class="t">Player | null</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>GameControls <span class="badge ui">presentational</span></h3>
+            <div class="path">components/GameControls/</div>
+            <p class="role">Action buttons — purely emits intents (new game, reset scores, change players, history).</p>
+            <div class="api">
+              <div class="api-label">Props</div>
+              <ul class="sig">
+                <li><span class="k">onNewGame</span>(): void</li>
+                <li><span class="k">onResetScores</span>(): void</li>
+                <li><span class="k">onChangePlayers</span>(): void</li>
+                <li><span class="k">onShowHistory</span>(): void</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>HistoryPage <span class="badge ui">view</span></h3>
+            <div class="path">components/HistoryPage/</div>
+            <p class="role">Newest-first list of finished games as reconstructed mini-boards. Empty-state aware; emits back / clear intents.</p>
+            <div class="api">
+              <div class="api-label">Props</div>
+              <ul class="sig">
+                <li><span class="k">history</span>: <span class="t">GameRecord[]</span></li>
+                <li><span class="k">onBack</span>(): void</li>
+                <li><span class="k">onClear</span>(): void</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>HistoryEntry <span class="badge ui">presentational</span></h3>
+            <div class="path">components/HistoryEntry/</div>
+            <p class="role">One past game: reuses <span class="inline">Board</span> (disabled, winning line still lit) to guarantee the snapshot matches the live board, plus result + names.</p>
+            <div class="api">
+              <div class="api-label">Props</div>
+              <ul class="sig">
+                <li><span class="k">record</span>: <span class="t">GameRecord</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ HOOKS / "APIs" ============ -->
+      <section>
+        <h2><span class="num">03</span> Hooks — the state APIs</h2>
+        <p class="section-intro">
+          These are the app's internal APIs: the only places that own mutable state.
+          Components depend on these interfaces (Dependency Inversion), not on the
+          rules or <span class="inline">localStorage</span> directly.
+        </p>
+
+        <div class="two-col">
+          <div class="card">
+            <h3>useGame() <span class="badge hook">hook</span></h3>
+            <div class="path">src/hooks/useGame.ts</div>
+            <p class="role">Single owner of all mutable game state. Status and winner are <em>derived</em> from the board (via <span class="inline">useMemo</span>), never stored separately, so they can't fall out of sync.</p>
+            <div class="api">
+              <div class="api-label">Returns — UseGameResult</div>
+              <ul class="sig">
+                <li><span class="k">board</span>: <span class="t">BoardState</span></li>
+                <li><span class="k">currentPlayer</span>: <span class="t">Player</span></li>
+                <li><span class="k">status</span>: <span class="t">GameStatus</span></li>
+                <li><span class="k">winner</span>: <span class="t">Player | null</span></li>
+                <li><span class="k">winningLine</span>: <span class="t">number[] | null</span></li>
+                <li><span class="k">scores</span>: <span class="t">Scores</span></li>
+                <li><span class="k">makeMove</span>(i: <span class="t">number</span>): void</li>
+                <li><span class="k">newGame</span>(): void</li>
+                <li><span class="k">resetScores</span>(): void</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>useHistory() <span class="badge hook">hook</span></h3>
+            <div class="path">src/hooks/useHistory.ts</div>
+            <p class="role">Owns the in-memory history list, seeded once from storage via a lazy initializer. Delegates all persistence to <span class="inline">historyStorage</span>.</p>
+            <div class="api">
+              <div class="api-label">Returns — UseHistoryResult</div>
+              <ul class="sig">
+                <li><span class="k">history</span>: <span class="t">GameRecord[]</span></li>
+                <li><span class="k">addRecord</span>(r: <span class="t">GameRecord</span>): void</li>
+                <li><span class="k">clear</span>(): void</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ DOMAIN CORE ============ -->
+      <section>
+        <h2><span class="num">04</span> Domain core &amp; data seams</h2>
+        <p class="section-intro">
+          Framework-free modules. Pure functions and data only — trivially unit-tested.
+        </p>
+
+        <div class="grid">
+          <div class="card">
+            <h3>gameLogic.ts <span class="badge core">pure</span></h3>
+            <div class="path">src/game/gameLogic.ts</div>
+            <p class="role">Deterministic rules driven entirely by <span class="inline">WINNING_LINES</span> / <span class="inline">PLAYERS</span>.</p>
+            <div class="api">
+              <div class="api-label">Functions</div>
+              <ul class="sig">
+                <li><span class="k">createEmptyBoard</span>(): <span class="t">BoardState</span></li>
+                <li><span class="k">calculateWinner</span>(b): <span class="t">WinResult | null</span></li>
+                <li><span class="k">isDraw</span>(b): <span class="t">boolean</span></li>
+                <li><span class="k">getNextPlayer</span>(p): <span class="t">Player</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>aiStrategy.ts <span class="badge core">pure</span></h3>
+            <div class="path">src/game/aiStrategy.ts</div>
+            <p class="role">Pure move selection. Tic-tac-toe is solved, so difficulty = how often the AI plays sub-optimally: <b>easy</b> random, <b>medium</b> win/block heuristic, <b>hard</b> depth-aware minimax (unbeatable). The <span class="inline">rng</span> is injectable for deterministic tests.</p>
+            <div class="api">
+              <div class="api-label">Exports</div>
+              <ul class="sig">
+                <li><span class="k">Difficulty</span> = <span class="t">'easy'|'medium'|'hard'</span></li>
+                <li><span class="k">chooseMove</span>(b, p, d, rng?): <span class="t">number | null</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>constants.ts <span class="badge core">config</span></h3>
+            <div class="path">src/game/constants.ts</div>
+            <p class="role">Open/Closed config: extend the game by editing data here, not branching logic.</p>
+            <div class="api">
+              <div class="api-label">Exports</div>
+              <ul class="sig">
+                <li><span class="k">BOARD_SIZE</span> = <span class="t">9</span></li>
+                <li><span class="k">PLAYERS</span> = <span class="t">['X','O']</span></li>
+                <li><span class="k">WINNING_LINES</span>: <span class="t">number[][]</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>playerSchema.ts <span class="badge core">validation</span></h3>
+            <div class="path">src/game/playerSchema.ts</div>
+            <p class="role">Single source of validation truth (zod) — a <span class="inline">discriminatedUnion</span> on <span class="inline">mode</span>: two-players needs two distinct names; vs-computer needs the human's name + a difficulty. Names ≥ 2 chars, trimmed. Form value type is <em>inferred</em> so rules &amp; types can't drift.</p>
+            <div class="api">
+              <div class="api-label">Exports</div>
+              <ul class="sig">
+                <li><span class="k">playerSchema</span></li>
+                <li><span class="k">PlayerFormValues</span> <span class="t">(inferred)</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>historyStorage.ts <span class="badge data">persistence</span></h3>
+            <div class="path">src/history/historyStorage.ts</div>
+            <p class="role">The only module that touches <span class="inline">localStorage</span>. Every access try/catch-wrapped so a disabled/full/corrupt store degrades to an empty list. Caps at <span class="inline">MAX_HISTORY = 20</span>, newest-first.</p>
+            <div class="api">
+              <div class="api-label">Functions</div>
+              <ul class="sig">
+                <li><span class="k">loadHistory</span>(): <span class="t">GameRecord[]</span></li>
+                <li><span class="k">saveRecord</span>(r): <span class="t">GameRecord[]</span></li>
+                <li><span class="k">clearHistory</span>(): void</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>game/types.ts <span class="badge core">types</span></h3>
+            <div class="path">src/game/types.ts</div>
+            <p class="role">Shared domain types. <span class="inline">Player</span> is derived from <span class="inline">PLAYERS</span> so adding a marker never edits the type.</p>
+            <div class="api">
+              <div class="api-label">Types</div>
+              <ul class="sig">
+                <li>Player · CellValue · BoardState</li>
+                <li>GameStatus · Players · Scores</li>
+                <li>WinResult · Opponent</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>history/types.ts <span class="badge data">types</span></h3>
+            <div class="path">src/history/types.ts</div>
+            <p class="role">The persisted record shape — a snapshot enough to redraw the final board without storing an image.</p>
+            <div class="api">
+              <div class="api-label">Exports</div>
+              <ul class="sig">
+                <li><span class="k">GameResult</span> = <span class="t">Player | 'draw'</span></li>
+                <li><span class="k">GameRecord</span> <span class="t">interface</span></li>
+                <li><span class="k">createRecordId</span>(): <span class="t">string</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ DATA FLOW ============ -->
+      <section>
+        <h2><span class="num">05</span> Key data flow — a move</h2>
+        <div class="card">
+          <ul class="sig" style="font-size: 13px; line-height: 1.9;">
+            <li><b style="color:var(--accent)">1.</b> User clicks a <span class="inline">Square</span> → <span class="inline">Board.onCellClick(i)</span> → <span class="inline">Game</span> → <span class="inline">useGame.makeMove(i)</span></li>
+            <li><b style="color:var(--accent)">2.</b> <span class="inline">makeMove</span> guards illegal moves, writes the new board, then asks <span class="inline">calculateWinner</span> / <span class="inline">isDraw</span> on the <em>resulting</em> board to update scores or flip the turn</li>
+            <li><b style="color:var(--accent)">3.</b> <span class="inline">status</span> &amp; <span class="inline">winner</span> are re-derived (useMemo) → flow back down to <span class="inline">StatusBar</span>, <span class="inline">ScoreBoard</span>, <span class="inline">Board</span></li>
+            <li><b style="color:var(--accent)">4.</b> <em>vs. AI:</em> if it's now the AI's turn, <span class="inline">Game</span>'s effect calls <span class="inline">aiStrategy.chooseMove</span> and schedules <span class="inline">makeMove(i)</span> (setTimeout, board disabled) — looping back through step 2. Cleanup cancels the timer, so StrictMode never double-moves.</li>
+            <li><b style="color:var(--accent)">5.</b> On a terminal state, <span class="inline">Game</span>'s effect fires once → <span class="inline">onGameEnd</span> → <span class="inline">useHistory.addRecord</span> → <span class="inline">historyStorage.saveRecord</span> → <span class="inline">localStorage</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ TESTING & TOOLING ============ -->
+      <section>
+        <h2><span class="num">06</span> Testing &amp; tooling</h2>
+        <table>
+          <thead>
+            <tr><th>Area</th><th>Location</th><th>Tooling</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Pure rules</td><td><code>src/game/gameLogic.test.ts</code></td><td>Vitest</td></tr>
+            <tr><td>AI strategy</td><td><code>src/game/aiStrategy.test.ts</code></td><td>Vitest (incl. minimax never-loses property)</td></tr>
+            <tr><td>Storage</td><td><code>src/history/historyStorage.test.ts</code></td><td>Vitest</td></tr>
+            <tr><td>Component / integration</td><td><code>src/components/__tests__/</code> (Game, History, PlayerSetup)</td><td>Vitest + Testing Library + jsdom</td></tr>
+            <tr><td>End-to-end</td><td><code>e2e/game.e2e.ts</code>, <code>e2e/helpers.ts</code></td><td>Playwright</td></tr>
+            <tr><td>Lint</td><td><code>eslint.config.js</code></td><td>typescript-eslint, react-hooks, react-refresh</td></tr>
+            <tr><td>Build / dev</td><td><code>vite.config.ts</code></td><td>Vite 8 + @vitejs/plugin-react</td></tr>
+            <tr><td>Report</td><td><code>scripts/generate-report.mjs</code></td><td>build + vitest JSON + playwright</td></tr>
+            <tr><td>Docs</td><td><code>docs/PRD.md</code>, <code>docs/HLD.md</code>, <code>docs/TEST_CASES.md</code></td><td>—</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ============ SCRIPTS ============ -->
+      <section>
+        <h2><span class="num">07</span> npm scripts</h2>
+        <table>
+          <thead><tr><th>Script</th><th>Command</th></tr></thead>
+          <tbody>
+            <tr><td><code>dev</code></td><td>vite</td></tr>
+            <tr><td><code>build</code></td><td>tsc -b &amp;&amp; vite build</td></tr>
+            <tr><td><code>lint</code></td><td>eslint .</td></tr>
+            <tr><td><code>test</code> / <code>test:watch</code></td><td>vitest run / vitest</td></tr>
+            <tr><td><code>e2e</code> / <code>e2e:ui</code></td><td>playwright test [--ui]</td></tr>
+            <tr><td><code>report</code></td><td>build + vitest JSON + playwright + generate-report</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <footer>
+        Generated architecture reference for the <b>tic-tac-toe</b> project ·
+        open <span class="inline">architecture.html</span> directly in a browser ·
+        reflects <code>src/</code> at the time of writing.
+      </footer>
+    </div>
+  </body>
+</html>

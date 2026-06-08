@@ -3,7 +3,7 @@ import { PlayerSetup } from './components/PlayerSetup/PlayerSetup';
 import { Game } from './components/Game/Game';
 import { HistoryPage } from './components/HistoryPage/HistoryPage';
 import { useHistory } from './hooks/useHistory';
-import type { Players } from './game/types';
+import type { Opponent, Players } from './game/types';
 import styles from './App.module.css';
 
 type View = 'game' | 'history';
@@ -15,8 +15,14 @@ type View = 'game' | 'history';
  */
 export default function App() {
   const [players, setPlayers] = useState<Players | null>(null);
+  const [opponent, setOpponent] = useState<Opponent>({ kind: 'human' });
   const [view, setView] = useState<View>('game');
   const { history, addRecord, clear } = useHistory();
+
+  const startGame = (nextPlayers: Players, nextOpponent: Opponent) => {
+    setOpponent(nextOpponent);
+    setPlayers(nextPlayers);
+  };
 
   if (view === 'history') {
     return (
@@ -33,10 +39,11 @@ export default function App() {
   return (
     <main className={styles.app}>
       {players === null ? (
-        <PlayerSetup onStart={setPlayers} />
+        <PlayerSetup onStart={startGame} />
       ) : (
         <Game
           players={players}
+          opponent={opponent}
           onChangePlayers={() => setPlayers(null)}
           onShowHistory={() => setView('history')}
           onGameEnd={addRecord}
