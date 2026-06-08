@@ -1,0 +1,8 @@
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-sm);
+  width: 100%;
+  max-width: 20rem;
+  aspect-ratio: 1;
+}

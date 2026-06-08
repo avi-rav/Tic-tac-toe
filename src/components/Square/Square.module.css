@@ -1,0 +1,41 @@
+.square {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  font-size: clamp(2rem, 12vw, 3.5rem);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+
+.square:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.square:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.square:disabled {
+  cursor: default;
+}
+
+.square[data-value='X'] {
+  color: var(--accent);
+}
+
+.square[data-value='O'] {
+  color: var(--danger);
+}
+
+.winning {
+  background: var(--win-bg);
+  border-color: var(--win-border);
+}

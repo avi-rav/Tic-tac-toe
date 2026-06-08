@@ -1,0 +1,12 @@
+.status {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text);
+  min-height: 1.5em;
+}
+
+.over {
+  color: var(--accent-strong);
+}

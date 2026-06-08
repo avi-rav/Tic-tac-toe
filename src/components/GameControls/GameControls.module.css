@@ -1,0 +1,43 @@
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
+  width: 100%;
+}
+
+.primary,
+.secondary {
+  padding: 0.55rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: 2px solid var(--accent);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.primary {
+  color: #fff;
+  background: var(--accent);
+}
+
+.primary:hover {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+.secondary {
+  color: var(--accent);
+  background: transparent;
+}
+
+.secondary:hover {
+  background: var(--surface);
+}
+
+.primary:focus-visible,
+.secondary:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
