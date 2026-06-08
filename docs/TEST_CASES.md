@@ -68,7 +68,27 @@ manual scenarios.
 | 5.3 | Keyboard play | Tab to a cell, press Enter/Space | The cell is played | 📋 Manual |
 | 5.4 | Focus visible | Tab through controls | A clear focus ring is shown | 📋 Manual |
 
-## 6. End-to-End (real browser — Playwright)
+## 6. Game History
+
+History records every finished game and shows a reconstructed mini-board (the
+"screenshot") of its final state, persisted in `localStorage`.
+
+| # | Scenario | Steps | Expected Result | Status |
+|---|----------|-------|-----------------|--------|
+| H.1 | Empty history | Open History before any game finishes | Friendly empty-state message; Clear disabled | ✅ `History.test.tsx` |
+| H.2 | Win is recorded | Finish a game with a winner, open History | Entry: mini-board of final state, "Alice (X) won", "Alice vs Bob" | ✅ `History.test.tsx` / `Game.test.tsx` |
+| H.3 | Draw is recorded | Finish a drawn game | Entry result reads "Draw" | ✅ `History.test.tsx` / `Game.test.tsx` |
+| H.4 | Recorded exactly once | Finish one game (incl. under StrictMode) | Exactly one record added — no duplicates | ✅ `Game.test.tsx` |
+| H.5 | Not recorded mid-game | Make moves without finishing | No record added | ✅ `Game.test.tsx` |
+| H.6 | Winning line highlighted | Win, open History | The 3 winning cells are highlighted in the mini-board | 📋 Manual |
+| H.7 | Newest first | Finish two games | Most recent entry appears at the top | ✅ `historyStorage.test.ts` |
+| H.8 | Persists across reload | Finish a game, reload, open History | Entry still present (localStorage) | ✅ `History.test.tsx` (seeded) / 📋 Manual |
+| H.9 | Clear history | Click Clear | List empties; empty state returns | ✅ `History.test.tsx` |
+| H.10 | Corrupt/blocked storage | Storage holds invalid JSON or throws | App loads; history degrades to empty, no crash | ✅ `historyStorage.test.ts` |
+| H.11 | Capped length | Finish more than the cap | History keeps only the newest `MAX_HISTORY` | ✅ `historyStorage.test.ts` |
+| H.12 | Back to game | Click Back in History | Returns to the game view | ✅ `History.test.tsx` |
+
+## 7. End-to-End (real browser — Playwright)
 
 These run the production build in a real Chromium browser via Playwright
 (`e2e/game.e2e.ts`). They cover the **core happy paths** and verify things jsdom
@@ -99,6 +119,8 @@ npm run e2e:ui      # Playwright UI mode for debugging
 
 Automated coverage:
 - `src/game/gameLogic.test.ts` — pure rule unit tests (win/draw/turn).
+- `src/history/historyStorage.test.ts` — persistence unit tests (save/load/cap/clear/corrupt).
 - `src/components/__tests__/PlayerSetup.test.tsx` — form validation & submit.
-- `src/components/__tests__/Game.test.tsx` — integration UI flow in jsdom (setup → play → win → reset).
+- `src/components/__tests__/Game.test.tsx` — integration UI flow in jsdom (setup → play → win → reset → record).
+- `src/components/__tests__/History.test.tsx` — history view (empty, entry, draw, clear, back, persistence).
 - `e2e/game.e2e.ts` — real-browser end-to-end (the 6 core flows above).

@@ -4,6 +4,7 @@ interface GameControlsProps {
   onNewGame: () => void;
   onResetScores: () => void;
   onChangePlayers: () => void;
+  onShowHistory: () => void;
 }
 
 /** Action buttons for the game session. Purely presentational — it just emits intents. */
@@ -11,6 +12,7 @@ export function GameControls({
   onNewGame,
   onResetScores,
   onChangePlayers,
+  onShowHistory,
 }: GameControlsProps) {
   return (
     <div className={styles.controls}>
@@ -26,6 +28,9 @@ export function GameControls({
         onClick={onChangePlayers}
       >
         Change Players
+      </button>
+      <button type="button" className={styles.secondary} onClick={onShowHistory}>
+        History
       </button>
     </div>
   );

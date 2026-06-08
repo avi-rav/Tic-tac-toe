@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui"
+    "e2e:ui": "playwright test --ui",
+    "report": "vite build --base=./ && vitest run --reporter=json --outputFile=reports/vitest.json && playwright test && node scripts/generate-report.mjs",
+    "report:serve": "vite preview --outDir . --port 4399 --strictPort"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

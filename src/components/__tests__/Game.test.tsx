@@ -1,8 +1,10 @@
 import { StrictMode } from 'react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../../App';
+import { Game } from '../Game/Game';
+import type { Players } from '../../game/types';
 
 /**
  * Renders the app and advances past the setup form into a live game.
@@ -98,5 +100,66 @@ describe('Game', () => {
       .getByText(/alice \(x\)/i)
       .closest('li')!;
     expect(within(aliceRow).getByText('1')).toBeInTheDocument();
+  });
+});
+
+describe('Game — history recording', () => {
+  const PLAYERS: Players = { X: 'Alice', O: 'Bob' };
+
+  function renderGame(strict = false) {
+    const onGameEnd = vi.fn();
+    const ui = (
+      <Game
+        players={PLAYERS}
+        onChangePlayers={() => {}}
+        onShowHistory={() => {}}
+        onGameEnd={onGameEnd}
+      />
+    );
+    render(strict ? <StrictMode>{ui}</StrictMode> : ui);
+    return { onGameEnd, user: userEvent.setup() };
+  }
+
+  async function playTopRowWin(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(cell(1)); // X
+    await user.click(cell(4)); // O
+    await user.click(cell(2)); // X
+    await user.click(cell(5)); // O
+    await user.click(cell(3)); // X completes the top row
+  }
+
+  it('records a finished game exactly once', async () => {
+    const { onGameEnd, user } = renderGame();
+    await playTopRowWin(user);
+    expect(onGameEnd).toHaveBeenCalledTimes(1);
+    const record = onGameEnd.mock.calls[0][0];
+    expect(record.result).toBe('X');
+    expect(record.winningLine).toEqual([0, 1, 2]);
+    expect(record.players).toEqual(PLAYERS);
+  });
+
+  // Regression guard: StrictMode double-invokes effects; the recordedRef must
+  // still produce exactly one record.
+  it('records exactly once under StrictMode', async () => {
+    const { onGameEnd, user } = renderGame(true);
+    await playTopRowWin(user);
+    expect(onGameEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('records a draw with result "draw"', async () => {
+    const { onGameEnd, user } = renderGame();
+    // Full board, no winner: X O X / X O O / O X X
+    for (const m of [1, 2, 3, 5, 4, 6, 8, 7, 9]) {
+      await user.click(cell(m));
+    }
+    expect(onGameEnd).toHaveBeenCalledTimes(1);
+    expect(onGameEnd.mock.calls[0][0].result).toBe('draw');
+  });
+
+  it('does not record before the game ends', async () => {
+    const { onGameEnd, user } = renderGame();
+    await user.click(cell(1));
+    await user.click(cell(2));
+    expect(onGameEnd).not.toHaveBeenCalled();
   });
 });

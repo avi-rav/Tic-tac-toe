@@ -2,7 +2,8 @@
 
 > Companion to `docs/PRD.md`. The PRD says *what* and *why*; this document says *how*.
 > Scope: a client-side, two-player (hot-seat) Tic-Tac-Toe game in React + TypeScript,
-> with no backend, no persistence, and no network calls.
+> with no backend and no network calls. The only persistence is local game history
+> in the browser's `localStorage`.
 
 ## 1. Design Goals
 
@@ -10,7 +11,7 @@
 - **Testability** — all game rules are pure functions; UI flows covered by RTL.
 - **Data-driven rules** — adding markers or lines is a data edit, not a logic change.
 - **Accessibility-first** — semantic HTML, keyboard operable, `aria-live` updates.
-- **No premature infrastructure** — no router, no global store, no server; state lives in React.
+- **No premature infrastructure** — no router, no global store, no server; state lives in React, with game history persisted to `localStorage` behind a single isolated module.
 
 ## 2. System Context
 
@@ -20,13 +21,17 @@
 │   User A ─┐                                                                   │
 │           ├──▶  React SPA  ──▶  DOM / screen reader                           │
 │   User B ─┘     (Vite build, static assets only)                             │
-│                                                                               │
-│   No backend · No network · No storage · State is in-memory, lost on reload   │
+│                                          │                                    │
+│                                          ▼                                    │
+│   No backend · No network        localStorage  ('ttt:history')                │
+│   Game state in-memory · Finished-game history persisted locally              │
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
 Two humans share one device. The entire application is static files served to the
-browser; there are no external systems, APIs, or databases.
+browser; there are no external systems, APIs, or databases. The browser's
+`localStorage` is the one persistence mechanism, used only to retain finished-game
+history across reloads.
 
 ## 3. Layered Architecture
 
@@ -39,24 +44,28 @@ browser; there are no external systems, APIs, or databases.
                 │ reads state / props            │ calls actions
                 │                                ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  State Layer  (src/hooks/useGame.ts)                         │
-│  Single owner of mutable state (board, currentPlayer,        │
-│  scores). Guards illegal moves. Exposes UseGameResult.       │
+│  State Layer  (src/hooks/useGame.ts, src/hooks/useHistory.ts)│
+│  useGame: single owner of mutable game state (board,         │
+│  currentPlayer, scores); guards illegal moves.               │
+│  useHistory: owns the in-memory history list; delegates       │
+│  persistence to the historyStorage module.                   │
 └───────────────▲───────────────────────────────┬─────────────┘
                 │ derives outcomes               │ calls
                 │                                ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Domain / Rules Layer  (src/game/)                           │
+│  Domain / Rules + Data Layer  (src/game/, src/history/)      │
 │  Pure functions + data: calculateWinner, isDraw,             │
 │  getNextPlayer, createEmptyBoard; WINNING_LINES, PLAYERS;     │
-│  types; playerSchema (zod) for setup validation.             │
-│  No React, no mutable state.                                 │
+│  types; playerSchema (zod). history: GameRecord type +        │
+│  historyStorage (the only localStorage access, fail-safe).    │
+│  No React, no mutable component state.                       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 Dependencies point **downward only**. Presentation depends on the State layer's
-`UseGameResult` interface (DIP); the State layer depends on the pure Rules layer.
-The Rules layer depends on nothing in the app.
+`UseGameResult` / `UseHistoryResult` interfaces (DIP); the State layer depends on the
+pure Rules + Data layer. `historyStorage` is the sole boundary to the `localStorage`
+side effect — the rest of the app never touches `window.localStorage`.
 
 ## 4. Module Inventory
 
@@ -66,14 +75,18 @@ The Rules layer depends on nothing in the app.
 | `types` | `src/game/types.ts` | Domain | `Player`, `CellValue`, `BoardState`, `GameStatus`, `Players`, `Scores`, `WinResult` |
 | `gameLogic` | `src/game/gameLogic.ts` | Domain | Pure rules: `createEmptyBoard`, `calculateWinner`, `isDraw`, `getNextPlayer` |
 | `playerSchema` | `src/game/playerSchema.ts` | Domain | Zod schema + inferred `PlayerFormValues`; single validation source |
+| `history/types` | `src/history/types.ts` | Domain | `GameRecord`, `GameResult`; `createRecordId()` |
+| `historyStorage` | `src/history/historyStorage.ts` | Domain | The only `localStorage` access: `loadHistory`, `saveRecord`, `clearHistory` (fail-safe, capped at `MAX_HISTORY`) |
 | `useGame` | `src/hooks/useGame.ts` | State | Owns board/turn/scores; `makeMove`, `newGame`, `resetScores` |
-| `App` | `src/App.tsx` | Presentation | Setup ↔ play seam; holds session `players` |
+| `useHistory` | `src/hooks/useHistory.ts` | State | Owns the in-memory history list; `addRecord`, `clear`; seeds from storage |
+| `App` | `src/App.tsx` | Presentation | Setup ↔ play ↔ history seam; holds session `players` + `view`; owns history |
+| `HistoryPage` / `HistoryEntry` | `src/components/HistoryPage,HistoryEntry/` | Presentation | History list + per-record mini-board (reuses `Board`) |
 | `PlayerSetup` | `src/components/PlayerSetup/` | Presentation | Validated name entry (react-hook-form + zod) |
 | `Game` | `src/components/Game/` | Presentation | Composition root; wires `useGame` to children |
 | `Board` / `Square` | `src/components/Board,Square/` | Presentation | Grid + memoized cell buttons |
 | `StatusBar` | `src/components/StatusBar/` | Presentation | `aria-live` turn/win/draw message |
 | `ScoreBoard` | `src/components/ScoreBoard/` | Presentation | Session tally + active-player highlight |
-| `GameControls` | `src/components/GameControls/` | Presentation | New Game / Reset Scores / Change Players buttons |
+| `GameControls` | `src/components/GameControls/` | Presentation | New Game / Reset Scores / Change Players / History buttons |
 
 ## 5. Core Data Model
 
@@ -85,6 +98,15 @@ type GameStatus = 'playing' | 'won' | 'draw';
 type Players    = Record<Player, string>;          // marker → entered name
 type Scores     = Record<Player, number> & { draws: number };
 interface WinResult { winner: Player; line: number[]; }  // line = winning indices
+
+type GameResult = Player | 'draw';
+interface GameRecord {                  // an immutable snapshot of a finished game
+  id: string;                           // stable list key (crypto.randomUUID)
+  players: Players;                     // names at play time
+  board: BoardState;                    // final board → reconstructs the "screenshot"
+  winningLine: number[] | null;         // highlighted line, or null for a draw
+  result: GameResult;
+}
 ```
 
 Board indices map to the 3×3 grid as:
@@ -102,7 +124,8 @@ Board indices map to the 3×3 grid as:
 - `useGame` stores exactly three pieces of state: `board`, `currentPlayer`, `scores`.
 - `status`, `winner`, and `winningLine` are **derived** (`useMemo`) from the board, never
   stored separately — so they can never fall out of sync with the source of truth.
-- `App` owns the only state outside the hook: `players | null`.
+- `App` owns the state outside `useGame`: `players | null`, the current `view`, and the
+  history list (via `useHistory`, seeded once from `localStorage`).
 
 ## 6. Key Flows
 
@@ -135,18 +158,44 @@ latest board (no stale-closure double-move).
 
 | Action | Effect | Scores | Players |
 |---|---|---|---|
-| New Game | clear board, X to move | kept | kept |
+| New Game | clear board, X to move (resets the record guard) | kept | kept |
 | Reset Scores | zero the tally | reset | kept |
 | Change Players | `App` sets `players = null` → back to setup | (new `useGame` on remount) | re-entered |
+| History | `App` sets `view = 'history'` → HistoryPage | kept | kept |
 
 > Note: returning to setup remounts `Game`, so `useGame` re-initializes and scores reset
 > on a player change. That matches "Change Players starts a fresh pairing."
+
+### 6.4 Recording a finished game
+
+```
+status transitions 'playing' → 'won' | 'draw'   (derived in useGame)
+   Game's useEffect fires; a recordedRef guards against:
+     - StrictMode's double-invoked effects
+     - re-renders while the game stays in a terminal state
+   → builds a GameRecord (id, players, final board, winningLine, result)
+   → onGameEnd(record)  ──▶  App: useHistory.addRecord
+                              ──▶  historyStorage.saveRecord (newest-first, capped)
+   newGame() clears the board → status back to 'playing' → ref resets → next game records again
+```
+
+This mirrors the turn-alternation fix: side effects that must run *once* per transition
+are guarded explicitly, because StrictMode intentionally double-invokes effects in dev.
+
+### 6.5 Viewing history
+
+```
+History button ─▶ App view='history' ─▶ HistoryPage(history, onBack, onClear)
+   each GameRecord ─▶ HistoryEntry ─▶ reuses <Board disabled winningLine=…>
+                                      as a small read-only final-state "screenshot"
+Back ─▶ view='game'   ·   Clear ─▶ useHistory.clear() → historyStorage.clearHistory()
+```
 
 ## 7. Technology Choices
 
 | Concern | Choice | Rationale |
 |---|---|---|
-| Framework | React 18 + TypeScript | Component model + type safety |
+| Framework | React 19 + TypeScript | Component model + type safety |
 | Build | Vite | Fast dev server, static output |
 | Forms | react-hook-form + `@hookform/resolvers/zod` | Declarative validation, minimal re-renders |
 | Validation | Zod | One schema is both runtime check and inferred type |
@@ -168,7 +217,10 @@ latest board (no stale-closure double-move).
 - **Responsiveness:** fluid, centered layout via CSS Modules; usable on mobile and desktop.
 - **Reliability:** all illegal moves are guarded in one place (`makeMove`); derived state
   removes a whole class of sync bugs.
-- **Persistence:** explicitly none — state is in-memory and resets on reload (per PRD non-goals).
+- **Persistence:** only finished-game **history** is persisted, via `localStorage` behind the
+  `historyStorage` module. All access is wrapped in `try/catch`, so corrupt JSON, a disabled
+  store, or an exceeded quota degrades to an empty list rather than crashing. Active game
+  state (board/turn/scores) is still in-memory and resets on reload.
 
 ## 10. Extensibility (Open/Closed in practice)
 
@@ -176,9 +228,12 @@ latest board (no stale-closure double-move).
 - **More players:** extend `PLAYERS`; `getNextPlayer` wraps the array automatically.
 - **AI opponent (future):** introduce a strategy module that produces a move index and feed
   it through the same `makeMove` — the rules and presentation layers stay untouched.
-- **Persistence (future):** wrap `useGame` state in a storage adapter; no component changes.
+- **Persistence:** game history is already persisted behind the `historyStorage` adapter;
+  the same seam could persist active game state with no component changes.
+- **History "screenshot":** stored as the 9-cell `board`, not a pixel image, and rendered by
+  reusing `Board`. Swapping to a real image capture would be isolated to `HistoryEntry`.
 
 ## 11. Out of Scope
 
-AI opponent, backend, cross-device/online play, accounts/auth beyond name entry,
-persistence across reloads. See PRD §2 Non-Goals.
+AI opponent, backend, cross-device/online play, accounts/auth beyond name entry.
+(Local history persistence *is* in scope; cross-device sync is not.) See PRD §2 Non-Goals.

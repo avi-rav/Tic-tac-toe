@@ -19,6 +19,7 @@ npm run build    # type-check + production build
 - Win detection for all rows, columns, and diagonals, with the winning line highlighted.
 - Draw detection.
 - Session scoreboard (wins per player + draws), **New Game**, **Reset Scores**, **Change Players**.
+- **Game history** — every finished game is saved (in `localStorage`) and shown on a History page as a reconstructed mini-board of its final state plus the result and player names.
 - Accessible and responsive.
 
 ## Architecture
@@ -30,16 +31,20 @@ are testable in isolation:
 src/
   game/        # Layer 1 — PURE rules & types (no React)
     types.ts         constants.ts      gameLogic.ts      playerSchema.ts
-  hooks/       # Layer 2 — STATE (the only owner of mutable game state)
-    useGame.ts
+  history/     # PURE history record type + localStorage persistence (no React)
+    types.ts         historyStorage.ts
+  hooks/       # Layer 2 — STATE (the only owners of mutable state)
+    useGame.ts       useHistory.ts
   components/  # Layer 3 — PRESENTATION (dumb, focused components)
     PlayerSetup/  Board/  Square/  StatusBar/  ScoreBoard/  GameControls/  Game/
-  App.tsx      # seam: swaps PlayerSetup <-> Game
+    HistoryPage/  HistoryEntry/
+  App.tsx      # seam: swaps PlayerSetup <-> Game <-> History; owns history
 ```
 
 - **`game/gameLogic.ts`** — `calculateWinner`, `isDraw`, `getNextPlayer`, `createEmptyBoard`. Pure functions; the only place the *rules* live.
 - **`hooks/useGame.ts`** — holds board/turn/score state and guards illegal moves. The only place *mutable state* lives. Win/draw status is **derived** from the board, never stored, so it can't fall out of sync.
-- **components** — render state and emit intents; they never compute rules themselves.
+- **`history/historyStorage.ts`** — the single place that touches `localStorage`, wrapped so failures degrade to an empty list. **`hooks/useHistory.ts`** owns the in-memory list and delegates persistence to it.
+- **components** — render state and emit intents; they never compute rules themselves. `HistoryEntry` **reuses the same `Board`** (read-only) so the saved "screenshot" is guaranteed to match the live board.
 
 ## SOLID — how each principle shows up here
 
@@ -63,8 +68,10 @@ Two layers:
 
 **Unit + integration** (Vitest + React Testing Library, jsdom) — `npm run test`:
 - `gameLogic.test.ts` — pure rule unit tests.
+- `historyStorage.test.ts` — persistence: save/load/cap/clear, plus corrupt/blocked-storage fallback.
 - `PlayerSetup.test.tsx` — form validation and submit.
-- `Game.test.tsx` — integration UI flow: setup → play → win → reset.
+- `Game.test.tsx` — integration UI flow: setup → play → win → reset, and history recorded exactly once (incl. under StrictMode).
+- `History.test.tsx` — history view: empty state, entry rendering, draw, clear, back, persisted seed.
 
 **End-to-end** (Playwright, real Chromium) — `npm run e2e`:
 - `e2e/game.e2e.ts` — 6 core flows in a real browser, including the winning-line
@@ -73,7 +80,7 @@ Two layers:
   (First run only: `npx playwright install chromium`.)
 
 The complete set of UI test scenarios (unit, e2e, and manual) is documented in
-[`TEST_CASES.md`](./TEST_CASES.md). Product requirements are in [`docs/PRD.md`](./docs/PRD.md).
+[`docs/TEST_CASES.md`](./docs/TEST_CASES.md). Product requirements are in [`docs/PRD.md`](./docs/PRD.md).
 
 ## Tech
 

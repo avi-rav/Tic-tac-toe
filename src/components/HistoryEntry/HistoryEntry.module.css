@@ -1,0 +1,46 @@
+.entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-sm);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+/* Shrink the reused Board into a thumbnail. */
+.miniBoard {
+  width: 6rem;
+  max-width: 6rem;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+/* Smaller marks to fit the thumbnail. */
+.miniBoard :global(button) {
+  font-size: 1.25rem;
+  border-width: 1px;
+  border-radius: 4px;
+  cursor: default;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.result {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.players {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
